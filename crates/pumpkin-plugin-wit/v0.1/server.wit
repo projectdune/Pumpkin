@@ -223,6 +223,15 @@ interface server {
         /// Returns the maximum number of players allowed on the server.
         get-max-players: func() -> u32;
 
+        /// Holds a joining player at the end of login until the returned token is resumed, so a
+        /// plugin can finish async work first. Call it from an `async-player-pre-login` handler.
+        /// The login is refused if it isn't resumed within 30 seconds.
+        defer-login: func(player-uuid: string) -> result<u32, string>;
+
+        /// Lets a deferred login continue, or refuses it with `kick-message`. Returns false if the
+        /// token is unknown or the login already ended.
+        resume-login: func(token: u32, kick-message: option<text-component>) -> bool;
+
         /// Returns whether the server is in hardcore mode.
         is-hardcore: func() -> bool;
 

@@ -154,6 +154,10 @@ impl PendingConnection {
             self.kick(pre_login_event.kick_message).await;
             return Some(PacketHandlerResult::Stop);
         }
+        if let Some(kick_message) = server.login_gate.wait(profile.id).await {
+            self.kick(kick_message).await;
+            return Some(PacketHandlerResult::Stop);
+        }
 
         let props = profile.properties.load();
         let packet = CLoginSuccess::new(

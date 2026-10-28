@@ -240,6 +240,34 @@ impl pumpkin::plugin::server::HostServer for PluginHostState {
         Ok(())
     }
 
+    fn defer_login(
+        &mut self,
+        _rep: Resource<Server>,
+        player_uuid: String,
+    ) -> wasmtime::Result<Result<u32, String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(uuid::Uuid::parse_str(&player_uuid)
+            .map(|player| server.login_gate.defer(player))
+            .map_err(|e| format!("invalid player uuid {player_uuid}: {e}")))
+    }
+
+    fn resume_login(
+        &mut self,
+        _rep: Resource<Server>,
+        token: u32,
+        kick_message: Option<Resource<pumpkin::plugin::text::TextComponent>>,
+    ) -> wasmtime::Result<bool> {
+        let kick_message = kick_message.map(|message| self.take(message)).transpose()?;
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(server.login_gate.resume(token, kick_message))
+    }
+
     fn get_max_players(&mut self, _rep: Resource<Server>) -> wasmtime::Result<u32> {
         let server = self.require_server()?;
 

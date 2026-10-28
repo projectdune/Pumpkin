@@ -57,6 +57,7 @@ mod connection_cache;
 pub(crate) mod debug_profiler;
 pub mod enchantment;
 mod key_store;
+pub mod login_gate;
 pub mod recipe;
 pub mod scheduler;
 pub mod seasonal_events;
@@ -72,6 +73,8 @@ use crate::data::advancement_data::AdvancementManager;
 #[repr(C)]
 pub struct Server {
     pub basic_config: BasicConfiguration,
+    /// Holds logins that plugins deferred (see [`login_gate::LoginGate`]).
+    pub login_gate: login_gate::LoginGate,
     pub advanced_config: AdvancedConfiguration,
     pub telemetry_config: TelemetryConfig,
 
@@ -307,6 +310,7 @@ impl Server {
         );
 
         let server = Self {
+            login_gate: login_gate::LoginGate::default(),
             basic_config,
             advanced_config,
             telemetry_config,
