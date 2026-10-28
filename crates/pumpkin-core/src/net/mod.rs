@@ -24,7 +24,6 @@ use pumpkin_util::{
 };
 use serde::{Deserialize, Deserializer};
 use sha1::Digest;
-use sha2::Sha256;
 use tokio::task::JoinHandle;
 
 use thiserror::Error;
@@ -71,8 +70,11 @@ where
     Ok(ArcSwap::new(Arc::new(v)))
 }
 
+/// The UUID vanilla gives an offline-mode player: Java's
+/// `UUID.nameUUIDFromBytes("OfflinePlayer:" + name)`, an MD5 version 3 UUID.
 pub fn offline_uuid(username: &str) -> Result<Uuid, uuid::Error> {
-    Uuid::from_slice(&Sha256::digest(username)[..16])
+    let digest = md5::compute(format!("OfflinePlayer:{username}"));
+    Ok(uuid::Builder::from_md5_bytes(digest.0).into_uuid())
 }
 
 /// Represents a player's configuration settings.
@@ -604,6 +606,13 @@ pub enum DisconnectReason {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn offline_uuid_matches_vanilla() {
+        // What a vanilla/Paper server assigns to the offline player "labtester".
+        let expected = uuid::Uuid::parse_str("f3c4f118-f98e-36be-9001-75c869a6d4a0").unwrap();
+        assert_eq!(super::offline_uuid("labtester").unwrap(), expected);
+    }
+
     use crate::net::is_valid_player_name;
 
     /// Test case for a standard, valid English name at max length.
