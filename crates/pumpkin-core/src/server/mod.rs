@@ -536,6 +536,28 @@ impl Server {
         world
     }
 
+    /// Unloads a world created with [`create_world`](Self::create_world) (if loaded) and deletes its
+    /// folder. `name` must be a single path component, and the primary world can't be deleted.
+    pub async fn delete_world(&self, name: &str) -> Result<(), String> {
+        if !is_plain_world_name(name) {
+            return Err(format!("Invalid world name '{name}'"));
+        }
+        let loaded = self
+            .worlds
+            .load()
+            .iter()
+            .any(|w| w.get_world_name() == name);
+        if loaded {
+            self.unload_world(name).await?;
+        }
+        let path = self.basic_config.get_world_path().join(name);
+        match tokio::fs::remove_dir_all(&path).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(format!("Failed to delete world '{name}': {e}")),
+        }
+    }
+
     pub async fn unload_world(&self, name: &str) -> Result<(), String> {
         let worlds = self.worlds.load();
         let world_to_unload = worlds
@@ -1405,5 +1427,28 @@ impl Server {
                 plugin_name,
             );
         self.plugin_manager.fire(self, &mut disable_event).await;
+    }
+}
+
+/// True for a name that is one ordinary folder name, so a world created or deleted under it stays
+/// inside the worlds folder.
+fn is_plain_world_name(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.contains(['/', '\\', ':'])
+        && std::path::Path::new(name).components().count() == 1
+}
+
+#[cfg(test)]
+mod world_name_tests {
+    use super::is_plain_world_name;
+
+    #[test]
+    fn only_plain_folder_names_can_be_deleted() {
+        assert!(is_plain_world_name("mine_f3c4f118f98e36be900175c869a6d4a0"));
+        for bad in ["", ".", "..", "../world", "a/b", "a\\b", "C:", "/abs"] {
+            assert!(!is_plain_world_name(bad), "{bad}");
+        }
     }
 }

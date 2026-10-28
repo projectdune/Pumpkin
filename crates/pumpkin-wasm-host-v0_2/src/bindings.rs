@@ -45,6 +45,7 @@ bindgen!({
         "pumpkin:plugin/server@0.2.0.[method]server.execute-command": async | store | trappable,
         "pumpkin:plugin/server@0.2.0.[method]server.save-all": async | store | trappable,
         "pumpkin:plugin/server@0.2.0.[method]server.unload-world": async | store | trappable,
+        "pumpkin:plugin/server@0.2.0.[method]server.delete-world": async | store | trappable,
         "pumpkin:plugin/server@0.2.0.[method]whitelist-manager.set-enabled": async | store | trappable,
         "pumpkin:plugin/world@0.2.0.[method]entity.add-passenger": async | store | trappable,
         "pumpkin:plugin/world@0.2.0.[method]entity.eject-passengers": async | store | trappable,

@@ -647,6 +647,31 @@ impl pumpkin::plugin::server::HostServerWithStore<PluginHostState> for HasSelf<P
             .await
     }
 
+    async fn delete_world(
+        mut host: Access<'_, PluginHostState, Self>,
+        _rep: Resource<Server>,
+        name: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let (server, plugin) = {
+            let state = host.get();
+            let server = state
+                .server
+                .clone()
+                .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+            let plugin = state
+                .plugin
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade)
+                .ok_or_else(|| wasmtime::Error::msg("Plugin instance not available"))?;
+            (server, plugin)
+        };
+
+        plugin
+            .store
+            .pump_reentry(&mut host, async move { server.delete_world(&name).await })
+            .await
+    }
+
     async fn save_all(
         mut host: Access<'_, PluginHostState, Self>,
         _rep: Resource<Server>,

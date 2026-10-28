@@ -526,6 +526,16 @@ impl pumpkin::plugin::server::HostServerWithStore<PluginHostState> for HasSelf<P
         in_active_context(accessor, server.unload_world(&name)).await
     }
 
+    async fn delete_world(
+        accessor: &Accessor<PluginHostState, Self>,
+        _rep: Resource<Server>,
+        name: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = accessor.server()?;
+
+        in_active_context(accessor, async move { server.delete_world(&name).await }).await
+    }
+
     async fn save_all(
         accessor: &Accessor<PluginHostState, Self>,
         _rep: Resource<Server>,

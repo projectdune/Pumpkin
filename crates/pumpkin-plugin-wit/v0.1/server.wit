@@ -199,6 +199,10 @@ interface server {
         /// Returns an error if the world cannot be found, is the primary/default world, or still has players inside.
         unload-world: func(name: string) -> result<_, string>;
 
+        /// Unloads a world made with `create-world` (if it's loaded) and deletes its folder. Fails if
+        /// players are still in it, for the primary world, or for a name that isn't a plain folder name.
+        delete-world: func(name: string) -> result<_, string>;
+
         /// Saves all players, player advancements, and loaded worlds to disk.
         save-all: func() -> result<_, string>;
 
