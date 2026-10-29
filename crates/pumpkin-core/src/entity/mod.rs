@@ -1338,7 +1338,10 @@ impl Entity {
             no_physics: AtomicBool::new(false),
             synched_data: synched_entity_data::SynchedEntityData::new(),
             movement_multiplier: AtomicCell::new(Vector3::default()),
-            velocity_dirty: AtomicBool::new(true),
+            // A player's velocity is their client's own, so it isn't sent at spawn: the player is in
+            // the world before `spawn_java_player` sends the login packet, and a first-tick velocity
+            // packet could beat it ("level is null" on the client, which then disconnects).
+            velocity_dirty: AtomicBool::new(entity_type != &EntityType::PLAYER),
             removed: AtomicBool::new(false),
             last_sent_yaw: AtomicU8::new(0),
             last_sent_pitch: AtomicU8::new(0),
