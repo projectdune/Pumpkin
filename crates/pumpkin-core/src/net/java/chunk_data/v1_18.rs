@@ -234,13 +234,14 @@ pub fn write_chunk_data(
         for section_index in 0..num_sections {
             let bit_index = section_index + 1; // Offset by 1 for the below-world section
 
-            if let LightContainer::Full(_) = &light_engine.sky_light[section_index] {
+            // A uniform section (`Empty(v)`, v > 0) is sent as a filled array, as in light updates.
+            if has_light(&light_engine.sky_light[section_index]) {
                 sky_light_mask |= 1 << bit_index;
             } else {
                 sky_light_empty_mask |= 1 << bit_index;
             }
 
-            if let LightContainer::Full(_) = &light_engine.block_light[section_index] {
+            if has_light(&light_engine.block_light[section_index]) {
                 block_light_mask |= 1 << bit_index;
             } else {
                 block_light_empty_mask |= 1 << bit_index;
@@ -271,21 +272,39 @@ pub fn write_chunk_data(
         // Write Sky Light arrays
         write.write_var_int(&VarInt(sky_light_mask.count_ones() as i32))?;
         for section_index in 0..num_sections {
-            if let LightContainer::Full(data) = &light_engine.sky_light[section_index] {
-                write.write_var_int(&light_data_size)?;
-                write.write_slice(data.as_ref())?;
-            }
+            write_light(&mut write, &light_engine.sky_light[section_index], &light_data_size)?;
         }
 
         // Write Block Light arrays
         write.write_var_int(&VarInt(block_light_mask.count_ones() as i32))?;
         for section_index in 0..num_sections {
-            if let LightContainer::Full(data) = &light_engine.block_light[section_index] {
-                write.write_var_int(&light_data_size)?;
-                write.write_slice(data.as_ref())?;
-            }
+            write_light(&mut write, &light_engine.block_light[section_index], &light_data_size)?;
         }
     }
 
+    Ok(())
+}
+
+/// Whether a light section is sent as an array (`Full`, or uniform and not dark).
+const fn has_light(section: &LightContainer) -> bool {
+    match section {
+        LightContainer::Full(_) => true,
+        LightContainer::Empty(value) => *value > 0,
+    }
+}
+
+/// Writes a light section's array if it has one to send (see `has_light`).
+fn write_light(write: &mut impl Write, section: &LightContainer, size: &VarInt) -> Result<(), WritingError> {
+    match section {
+        LightContainer::Full(data) => {
+            write.write_var_int(size)?;
+            write.write_slice(data.as_ref())?;
+        }
+        LightContainer::Empty(value) if *value > 0 => {
+            write.write_var_int(size)?;
+            write.write_slice(&[*value << 4 | *value; LightContainer::ARRAY_SIZE])?;
+        }
+        LightContainer::Empty(_) => {}
+    }
     Ok(())
 }

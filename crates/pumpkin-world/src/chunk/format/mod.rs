@@ -1446,9 +1446,13 @@ impl LightContainer {
         }
     }
 
+    /// Sets every value in the section to `value`, stored as one value rather than an array (a
+    /// later `set` of a different value allocates the array). Uniform sections are what the
+    /// `full` and `dark` lighting modes make, for every section of every chunk.
     #[inline]
     pub fn fill(&mut self, value: u8) {
-        *self = Self::new_filled(value);
+        assert!(value <= 15, "Value must be between 0 and 15");
+        *self = Self::Empty(value);
     }
 }
 
