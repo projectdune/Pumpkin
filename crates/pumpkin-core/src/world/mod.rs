@@ -1906,6 +1906,145 @@ impl World {
         changed.len()
     }
 
+    /// Pastes a box of explicit block states with its minimum corner at `origin`.
+    ///
+    /// `states` has `size.0 * size.1 * size.2` entries in Sponge schematic order (x fastest, then
+    /// z, then y). Entries equal to `skip` (usually air) leave the world as it is. Unlike
+    /// `fill_cuboid_weighted`, chunks that aren't loaded are loaded or generated first, so a paste
+    /// can cover more than any player sees. Like it, each chunk is written in one batch with no
+    /// block callbacks or neighbour updates, light is updated where it changes and clients get
+    /// batched updates. Returns how many blocks changed state.
+    pub async fn paste_states(
+        &self,
+        origin: BlockPos,
+        size: (u32, u32, u32),
+        states: &[u16],
+        skip: Option<u16>,
+    ) -> Result<usize, String> {
+        let (width, height, length) = (size.0 as i32, size.1 as i32, size.2 as i32);
+        if width <= 0 || height <= 0 || length <= 0 {
+            return Ok(0);
+        }
+        let volume = size.0 as usize * size.1 as usize * size.2 as usize;
+        if states.len() != volume {
+            return Err(format!("expected {volume} states for {size:?}, got {}", states.len()));
+        }
+        let (min_x, min_y, min_z) = (origin.0.x, origin.0.y, origin.0.z);
+        let (max_x, max_z) = (min_x + width - 1, min_z + length - 1);
+
+        let mut changed = Vec::new();
+        let mut relight = Vec::new();
+        for chunk_x in (min_x >> 4)..=(max_x >> 4) {
+            for chunk_z in (min_z >> 4)..=(max_z >> 4) {
+                let start_x = (min_x - (chunk_x << 4)).clamp(0, 15) as usize;
+                let end_x = (max_x - (chunk_x << 4)).clamp(0, 15) as usize;
+                let start_z = (min_z - (chunk_z << 4)).clamp(0, 15) as usize;
+                let end_z = (max_z - (chunk_z << 4)).clamp(0, 15) as usize;
+                let mut updates = Vec::new();
+                for dy in 0..height {
+                    for z in start_z..=end_z {
+                        for x in start_x..=end_x {
+                            let (wx, wz) = ((chunk_x << 4) + x as i32, (chunk_z << 4) + z as i32);
+                            let index = ((dy * length + (wz - min_z)) * width + (wx - min_x)) as usize;
+                            let raw = states[index];
+                            if Some(raw) == skip {
+                                continue;
+                            }
+                            let Some(state_id) = BlockStateId::new(raw) else {
+                                return Err(format!("invalid block state id {raw}"));
+                            };
+                            updates.push((x, min_y + dy, z, state_id));
+                        }
+                    }
+                }
+                if updates.is_empty() {
+                    continue;
+                }
+
+                let chunk_pos = Vector2::new(chunk_x, chunk_z);
+                let written = self
+                    .level
+                    .get_or_fetch_chunk(chunk_pos, |chunk| {
+                        let replaced = chunk.set_blocks_batch(updates.iter().copied());
+                        let written: Vec<_> = updates
+                            .iter()
+                            .zip(replaced)
+                            .filter(|((.., new_id), (.., old_id))| new_id != old_id)
+                            .map(|(&(x, y, z, new_id), (.., old_id))| {
+                                let pos = BlockPos::new((chunk_x << 4) + x as i32, y, (chunk_z << 4) + z as i32);
+                                (pos, old_id, new_id)
+                            })
+                            .collect();
+                        if !written.is_empty() && !chunk.is_dirty() {
+                            chunk.mark_dirty(true);
+                        }
+                        written
+                    })
+                    .await;
+                for (pos, old_id, new_id) in written {
+                    if pumpkin_world::lighting::LightEngine::has_different_light_properties(
+                        old_id.to_state(),
+                        new_id.to_state(),
+                    ) {
+                        relight.push(pos);
+                    }
+                    changed.push((pos, new_id));
+                }
+            }
+        }
+
+        self.queue_block_updates(&changed);
+        self.flush_block_updates();
+        for pos in relight {
+            self.level.light_engine.update_lighting_at(&self.level, pos);
+        }
+        Ok(changed.len())
+    }
+
+    /// Reads the block states of the box with its minimum corner at `origin`, in the order
+    /// `paste_states` takes (x fastest, then z, then y), loading chunks as needed. Used to save
+    /// what a paste will cover so it can be undone.
+    pub async fn copy_states(&self, origin: BlockPos, size: (u32, u32, u32)) -> Vec<u16> {
+        let (width, height, length) = (size.0 as i32, size.1 as i32, size.2 as i32);
+        let mut out = vec![0u16; size.0 as usize * size.1 as usize * size.2 as usize];
+        if out.is_empty() {
+            return out;
+        }
+        let (min_x, min_y, min_z) = (origin.0.x, origin.0.y, origin.0.z);
+        let (max_x, max_z) = (min_x + width - 1, min_z + length - 1);
+        for chunk_x in (min_x >> 4)..=(max_x >> 4) {
+            for chunk_z in (min_z >> 4)..=(max_z >> 4) {
+                let start_x = (min_x - (chunk_x << 4)).clamp(0, 15) as usize;
+                let end_x = (max_x - (chunk_x << 4)).clamp(0, 15) as usize;
+                let start_z = (min_z - (chunk_z << 4)).clamp(0, 15) as usize;
+                let end_z = (max_z - (chunk_z << 4)).clamp(0, 15) as usize;
+                let column = self
+                    .level
+                    .get_or_fetch_chunk(Vector2::new(chunk_x, chunk_z), |chunk| {
+                        let mut read = Vec::new();
+                        for dy in 0..height {
+                            for z in start_z..=end_z {
+                                for x in start_x..=end_x {
+                                    let state = chunk
+                                        .section
+                                        .get_block_absolute_y(x, min_y + dy, z)
+                                        .map_or(0, BlockStateId::as_u16);
+                                    read.push((x, dy, z, state));
+                                }
+                            }
+                        }
+                        read
+                    })
+                    .await;
+                for (x, dy, z, state) in column {
+                    let (wx, wz) = ((chunk_x << 4) + x as i32, (chunk_z << 4) + z as i32);
+                    out[((dy * length + (wz - min_z)) * width + (wx - min_x)) as usize] = state;
+                }
+            }
+        }
+        out
+    }
+
     #[expect(clippy::too_many_lines)]
     pub fn flush_block_updates(&self) {
         let mut block_state_updates_by_chunk_section: HashMap<

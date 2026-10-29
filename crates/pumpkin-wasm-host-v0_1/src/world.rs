@@ -2,7 +2,7 @@ use pumpkin_data::block_properties::NoteblockInstrument as InternalNoteblockInst
 use pumpkin_data::block_state::PistonBehavior;
 use pumpkin_data::{BlockDirection as InternalBlockDirection, BlockId, BlockStateId};
 use pumpkin_util::math::position::BlockPos;
-use pumpkin_wasm_host_common::fill::{check_fill_volume, fill_palette};
+use pumpkin_wasm_host_common::fill::{check_box_volume, check_fill_volume, fill_palette};
 use pumpkin_world::chunk::ChunkHeightmapType;
 use pumpkin_world::chunk::io::Dirtiable;
 use pumpkin_world::world::BlockFlags;
@@ -1303,6 +1303,52 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
             })
             .await?;
         Ok(Ok(u32::try_from(changed).unwrap_or(u32::MAX)))
+    }
+
+    async fn paste_states(
+        mut host: Access<'_, PluginHostState, Self>,
+        world: Resource<World>,
+        origin: WitBlockPos,
+        size_x: u32,
+        size_y: u32,
+        size_z: u32,
+        states: Vec<u16>,
+        skip: Option<u16>,
+    ) -> wasmtime::Result<Result<u32, String>> {
+        let origin = BlockPos::new(origin.x, origin.y, origin.z);
+        let (world, plugin) = world_and_plugin(host.get(), &world)?;
+        if let Err(err) = check_box_volume(&world, origin, (size_x, size_y, size_z)) {
+            return Ok(Err(err));
+        }
+        let runtime = tokio::runtime::Handle::current();
+        let changed = plugin
+            .store
+            .pump_blocking(&mut host, move || {
+                runtime.block_on(world.paste_states(origin, (size_x, size_y, size_z), &states, skip))
+            })
+            .await?;
+        Ok(changed.map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
+    }
+
+    async fn copy_states(
+        mut host: Access<'_, PluginHostState, Self>,
+        world: Resource<World>,
+        origin: WitBlockPos,
+        size_x: u32,
+        size_y: u32,
+        size_z: u32,
+    ) -> wasmtime::Result<Result<Vec<u16>, String>> {
+        let origin = BlockPos::new(origin.x, origin.y, origin.z);
+        let (world, plugin) = world_and_plugin(host.get(), &world)?;
+        if let Err(err) = check_box_volume(&world, origin, (size_x, size_y, size_z)) {
+            return Ok(Err(err));
+        }
+        let runtime = tokio::runtime::Handle::current();
+        let states = plugin
+            .store
+            .pump_blocking(&mut host, move || runtime.block_on(world.copy_states(origin, (size_x, size_y, size_z))))
+            .await?;
+        Ok(Ok(states))
     }
 
     async fn set_block_by_name(

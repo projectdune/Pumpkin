@@ -39,6 +39,19 @@ pub fn fill_volume(min: BlockPos, max: BlockPos) -> u64 {
         * (u64::from(min.0.z.abs_diff(max.0.z)) + 1)
 }
 
+/// `check_fill_volume` for a box given by its minimum corner and size (`paste-states`).
+pub fn check_box_volume(world: &World, origin: BlockPos, size: (u32, u32, u32)) -> Result<(), String> {
+    if size.0 == 0 || size.1 == 0 || size.2 == 0 {
+        return Ok(());
+    }
+    let max = BlockPos::new(
+        origin.0.x + size.0 as i32 - 1,
+        origin.0.y + size.1 as i32 - 1,
+        origin.0.z + size.2 as i32 - 1,
+    );
+    check_fill_volume(world, origin, max)
+}
+
 /// Rejects fills larger than the world's `max_block_modifications` game rule, as `/fill` does.
 pub fn check_fill_volume(world: &World, min: BlockPos, max: BlockPos) -> Result<(), String> {
     let volume = fill_volume(min, max);

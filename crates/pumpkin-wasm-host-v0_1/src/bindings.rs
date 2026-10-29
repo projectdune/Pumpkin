@@ -60,6 +60,8 @@ bindgen!({
         "pumpkin:plugin/world@0.1.0.[method]world.set-block": async | store | trappable,
         "pumpkin:plugin/world@0.1.0.[method]world.set-block-by-id": async | store | trappable,
         "pumpkin:plugin/world@0.1.0.[method]world.fill-cuboid": async | store | trappable,
+        "pumpkin:plugin/world@0.1.0.[method]world.paste-states": async | store | trappable,
+        "pumpkin:plugin/world@0.1.0.[method]world.copy-states": async | store | trappable,
         "pumpkin:plugin/world@0.1.0.[method]world.set-block-by-name": async | store | trappable,
         "pumpkin:plugin/world@0.1.0.[method]world.set-block-state": async | store | trappable,
         "pumpkin:plugin/world@0.1.0.[method]world.set-raining": async | store | trappable,

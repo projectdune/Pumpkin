@@ -863,6 +863,15 @@ interface %world {
         /// Unloaded chunks are skipped. Fails if the palette is empty or the volume exceeds the
         /// `max_block_modifications` game rule. Returns the number of blocks that changed.
         fill-cuboid: async func(min: block-pos, max: block-pos, palette: list<weighted-block-state>, seed: u64) -> result<u32, string>;
+        /// Pastes a box of explicit block states (`size-x * size-y * size-z` of them, x fastest, then z,
+        /// then y, as in a Sponge schematic) with its minimum corner at `origin`. States equal to
+        /// `skip` leave the world as it is. Unlike `fill-cuboid`, unloaded chunks are loaded or
+        /// generated first. No block callbacks or neighbour updates; lighting is updated. Fails on an
+        /// invalid state or if the volume exceeds `max_block_modifications`. Returns blocks changed.
+        paste-states: async func(origin: block-pos, size-x: u32, size-y: u32, size-z: u32, states: list<u16>, skip: option<u16>) -> result<u32, string>;
+        /// Reads the block states of a box in `paste-states` order, loading chunks as needed (for
+        /// undoing a paste). Fails if the volume exceeds `max_block_modifications`.
+        copy-states: async func(origin: block-pos, size-x: u32, size-y: u32, size-z: u32) -> result<list<u16>, string>;
 
         /// Returns the current time of day in ticks.
         get-time-of-day: func() -> u64;
