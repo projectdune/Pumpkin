@@ -191,6 +191,14 @@ impl<S: CommandSource> Tree<S> {
         node
     }
 
+    /// Removes the root command `name`, so a command registered under that name afterwards starts
+    /// fresh instead of merging into it. Its nodes stay allocated but are no longer reachable.
+    /// Returns whether there was such a command.
+    pub fn detach_root_child(&mut self, name: &str) -> bool {
+        self.command_node_mappings.remove(name);
+        self[ROOT_NODE_ID].children_mut_ref().remove(name).is_some()
+    }
+
     /// Adds a child to a given node.
     ///
     /// # Panics

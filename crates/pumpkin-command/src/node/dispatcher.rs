@@ -259,6 +259,14 @@ impl<S: CommandSource> CommandDispatcher<S> {
         node.meta.literal = name.clone().into();
         node.meta.literal_lowercase.clone_from(&name);
         self.reactivate_plugin_command(&name);
+        // A plugin command replaces a built-in one of the same name, as on Bukkit, instead of
+        // merging into it: merged, the built-in's requirements and arguments would shadow it.
+        if node.meta.source.is_some()
+            && let Some(existing) = self.tree.get(&name)
+            && self.tree[existing].meta.source.is_none()
+        {
+            self.tree.detach_root_child(&name);
+        }
         let main_node_id = self.tree.add_child_to_root(node);
 
         // For double-slash or slash-prefixed commands (e.g. //set or /set),
@@ -1044,6 +1052,33 @@ mod test {
         let source = DummySource::dummy();
         let result = dispatcher.execute_input("simple", &source);
         assert!(result.is_err_and(|error| error.error_type == &DISPATCHER_UNKNOWN_COMMAND));
+    }
+
+    #[test]
+    fn plugin_command_replaces_builtin_of_same_name() {
+        let mut dispatcher = CommandDispatcher::new();
+        let builtin: fn(&CommandContext) -> CommandExecutorResult = |_| Ok(1);
+        let plugin: fn(&CommandContext) -> CommandExecutorResult = |_| Ok(2);
+        // A built-in nobody may use, as vanilla `/tp` is for a player without op.
+        dispatcher.register(
+            CommandArgumentBuilder::new("tp", "Built-in teleport")
+                .requires(crate::node::Requirement(std::sync::Arc::new(|_| false)))
+                .executes(builtin),
+        );
+        dispatcher.register(
+            CommandArgumentBuilder::new("tp", "Plugin teleport")
+                .with_source("test-plugin")
+                .executes(plugin),
+        );
+        assert_eq!(dispatcher.execute_input("tp", &DummySource::dummy()), Ok(2));
+
+        // The same plugin registering again (a reload) still merges into its own command.
+        dispatcher.register(
+            CommandArgumentBuilder::new("tp", "Plugin teleport")
+                .with_source("test-plugin")
+                .executes(plugin),
+        );
+        assert_eq!(dispatcher.execute_input("tp", &DummySource::dummy()), Ok(2));
     }
 
     #[test]
