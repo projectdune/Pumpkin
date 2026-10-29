@@ -1291,6 +1291,37 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         )
     }
 
+    fn add_tab_entry(
+        &mut self,
+        player: Resource<Player>,
+        id: pumpkin::plugin::uuid::Uuid,
+        name: String,
+        display_name: Option<Resource<pumpkin::plugin::text::TextComponent>>,
+        textures: Option<(String, Option<String>)>,
+    ) -> wasmtime::Result<()> {
+        let display_name = display_name.map(|n| self.take(n)).transpose()?;
+        let player = self.get(&player)?;
+        player.add_tab_entry(uuid::Uuid::from_u64_pair(id.high, id.low), &name, display_name.as_ref(), textures);
+        Ok(())
+    }
+
+    fn update_tab_entry_name(
+        &mut self,
+        player: Resource<Player>,
+        id: pumpkin::plugin::uuid::Uuid,
+        display_name: Option<Resource<pumpkin::plugin::text::TextComponent>>,
+    ) -> wasmtime::Result<()> {
+        let display_name = display_name.map(|n| self.take(n)).transpose()?;
+        let player = self.get(&player)?;
+        player.update_tab_entry_name(uuid::Uuid::from_u64_pair(id.high, id.low), display_name.as_ref());
+        Ok(())
+    }
+
+    fn remove_tab_entry(&mut self, player: Resource<Player>, id: pumpkin::plugin::uuid::Uuid) -> wasmtime::Result<()> {
+        self.get(&player)?.remove_tab_entry(uuid::Uuid::from_u64_pair(id.high, id.low));
+        Ok(())
+    }
+
     fn set_tab_list_name(
         &mut self,
         player: Resource<Player>,
@@ -2481,6 +2512,11 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     fn is_flying(&mut self, player: Resource<Player>) -> wasmtime::Result<bool> {
         let player = self.get(&player)?;
         Ok(player.is_flying())
+    }
+
+    fn close_gui(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
+        self.get(&player)?.close_handled_screen();
+        Ok(())
     }
 
     fn set_flying(&mut self, player: Resource<Player>, flying: bool) -> wasmtime::Result<()> {

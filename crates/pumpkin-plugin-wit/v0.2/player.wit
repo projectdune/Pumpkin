@@ -883,6 +883,13 @@ interface player {
         get-tab-list-name: func () -> option<text-component>;
         /// Sets the player's custom tab list name.
         set-tab-list-name: func (name: option<text-component>);
+        /// Lists another player in this player's tab list: one in another world or on another
+        /// server. `textures` is the skin property (value, optional signature).
+        add-tab-entry: func (id: uuid, name: string, display-name: option<text-component>, textures: option<tuple<string, option<string>>>);
+        /// Changes the tab list name of an entry added with `add-tab-entry`.
+        update-tab-entry-name: func (id: uuid, display-name: option<text-component>);
+        /// Removes an entry added with `add-tab-entry`.
+        remove-tab-entry: func (id: uuid);
 
         // Messaging, Chat & Commands
 
@@ -1036,6 +1043,8 @@ interface player {
 
         /// Opens a GUI for the player.
         open-gui: async func (gui-ref: gui);
+        /// Closes whatever container screen the player has open (their own inventory included).
+        close-gui: func ();
         /// Closes the player's currently open container or GUI screen.
         close-inventory: async func ();
         /// Returns whether the player currently has an external container or GUI screen open.

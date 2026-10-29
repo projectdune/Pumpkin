@@ -1019,6 +1019,63 @@ impl Player {
         ));
     }
 
+    /// Lists a player this one can't otherwise see in their tab list: someone in another world or
+    /// on another server of the network. `textures` is the skin property (value, signature).
+    pub fn add_tab_entry(
+        &self,
+        id: uuid::Uuid,
+        name: &str,
+        display_name: Option<&TextComponent>,
+        textures: Option<(String, Option<String>)>,
+    ) {
+        let properties: Vec<pumpkin_protocol::Property> = textures
+            .into_iter()
+            .map(|(value, signature)| pumpkin_protocol::Property {
+                name: "textures".into(),
+                value: value.into(),
+                signature: signature.map(Into::into),
+            })
+            .collect();
+        let flags = PlayerInfoFlags::ADD_PLAYER
+            | PlayerInfoFlags::UPDATE_LISTED
+            | PlayerInfoFlags::UPDATE_LATENCY
+            | PlayerInfoFlags::UPDATE_DISPLAY_NAME;
+        // Actions go in the order of their flag bits.
+        self.try_send_client_packet(&CPlayerInfoUpdate::new(
+            flags.bits(),
+            &[pumpkin_protocol::java::client::play::Player {
+                uuid: id,
+                actions: &[
+                    PlayerAction::AddPlayer {
+                        name,
+                        properties: &properties,
+                    },
+                    PlayerAction::UpdateListed(true),
+                    PlayerAction::UpdateLatency(VarInt(0)),
+                    PlayerAction::UpdateDisplayName(display_name),
+                ],
+            }],
+        ));
+    }
+
+    /// Changes the tab list name of an entry added with `add_tab_entry`.
+    pub fn update_tab_entry_name(&self, id: uuid::Uuid, display_name: Option<&TextComponent>) {
+        self.try_send_client_packet(&CPlayerInfoUpdate::new(
+            PlayerInfoFlags::UPDATE_DISPLAY_NAME.bits(),
+            &[pumpkin_protocol::java::client::play::Player {
+                uuid: id,
+                actions: &[PlayerAction::UpdateDisplayName(display_name)],
+            }],
+        ));
+    }
+
+    /// Takes an entry added with `add_tab_entry` out of this player's tab list.
+    pub fn remove_tab_entry(&self, id: uuid::Uuid) {
+        self.try_send_client_packet(&pumpkin_protocol::java::client::play::CRemovePlayerInfo {
+            players: &[id],
+        });
+    }
+
     pub fn set_tab_list_order(&self, order: i32) {
         self.tab_list_order.store(order, Ordering::Relaxed);
         let world = self.world();
