@@ -1851,17 +1851,29 @@ impl DataComponentCodec<Self> for CustomModelDataImpl {
 
 impl DataComponentCodec<Self> for TooltipDisplayImpl {
     fn serialize(&self, seq: &mut impl NetworkWriteExt) -> Result<(), WritingError> {
-        seq.write_bool(false)?;
-        seq.write_var_int(&VarInt(0))
+        seq.write_bool(self.hide_tooltip)?;
+        seq.write_var_int(&VarInt(self.hidden_components.len() as i32))?;
+        for component in self.hidden_components.iter() {
+            seq.write_var_int(&VarInt(i32::from(component.to_id())))?;
+        }
+        Ok(())
     }
 
     fn deserialize(seq: &mut impl NetworkReadExt) -> Result<Self, ReadingError> {
-        let _hide_tooltip = seq.get_bool()?;
+        let hide_tooltip = seq.get_bool()?;
         let len = seq.get_var_int()?.0 as usize;
+        let mut hidden = Vec::with_capacity(len.min(64));
         for _ in 0..len {
-            let _comp_id = seq.get_var_int()?;
+            let id = u8::try_from(seq.get_var_int()?.0)
+                .ok()
+                .and_then(DataComponent::try_from_id)
+                .ok_or_else(|| ReadingError::Message("Unknown TooltipDisplay component".into()))?;
+            hidden.push(id);
         }
-        Ok(Self)
+        Ok(Self {
+            hide_tooltip,
+            hidden_components: hidden.into(),
+        })
     }
 }
 

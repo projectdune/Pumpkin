@@ -1,6 +1,7 @@
 use crate::data_component_impl::{
     DataComponentImpl, IdOr, get_i32_hash, get_idor_hash, get_str_hash,
 };
+use crate::data_component::DataComponent;
 use crate::sound::Sound;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
@@ -354,13 +355,49 @@ impl DataComponentImpl for CustomModelDataImpl {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct TooltipDisplayImpl;
+pub struct TooltipDisplayImpl {
+    /// Hides the whole tooltip.
+    pub hide_tooltip: bool,
+    /// Components whose tooltip lines are hidden (enchantments, attribute modifiers, ...).
+    pub hidden_components: Cow<'static, [DataComponent]>,
+}
 impl TooltipDisplayImpl {
-    pub const fn read_data(_data: &NbtTag) -> Option<Self> {
-        Some(Self)
+    /// Nothing hidden, the vanilla prototype value.
+    pub const DEFAULT: Self = Self {
+        hide_tooltip: false,
+        hidden_components: Cow::Borrowed(&[]),
+    };
+
+    pub fn read_data(data: &NbtTag) -> Option<Self> {
+        let NbtTag::Compound(compound) = data else {
+            return Some(Self::DEFAULT);
+        };
+        let hidden = compound
+            .get_list("hidden_components")
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|tag| tag.extract_string())
+            .filter_map(DataComponent::try_from_name)
+            .collect::<Vec<_>>();
+        Some(Self {
+            hide_tooltip: compound.get_bool("hide_tooltip").unwrap_or(false),
+            hidden_components: Cow::Owned(hidden),
+        })
     }
 }
 impl DataComponentImpl for TooltipDisplayImpl {
+    fn write_data(&self) -> NbtTag {
+        let mut compound = NbtCompound::new();
+        compound.put_bool("hide_tooltip", self.hide_tooltip);
+        compound.put_list(
+            "hidden_components",
+            self.hidden_components
+                .iter()
+                .map(|c| NbtTag::String(c.to_name().into()))
+                .collect(),
+        );
+        NbtTag::Compound(compound)
+    }
     default_impl!(TooltipDisplay);
 }
 
