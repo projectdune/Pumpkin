@@ -2515,7 +2515,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     }
 
     fn close_gui(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
-        self.get(&player)?.close_handled_screen();
+        // Closing fires InventoryCloseEvent, and a plugin calling this would get that event while
+        // it's still in this call: done inline, its store deadlocks. So close on another task.
+        let player = self.get(&player)?.clone();
+        tokio::task::spawn_blocking(move || player.close_handled_screen());
         Ok(())
     }
 
