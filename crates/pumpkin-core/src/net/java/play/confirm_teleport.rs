@@ -29,15 +29,19 @@ impl JavaClient {
             }
         };
 
+        // Like vanilla (`handleAcceptTeleportPacket`), only the confirmation of the teleport we're
+        // waiting for counts; any other is ignored. A client confirms each teleport in order, so
+        // when two are sent close together (a spawn teleport, then a plugin's) the first one's
+        // confirmation arrives after the second was sent. Kicking for it dropped players behind a
+        // protocol translator (ViaVersion), which delays confirmations.
         match result {
             TeleportResult::Success => {}
-            TeleportResult::WrongId => {
-                self.try_kick(&TextComponent::text("Wrong teleport id"));
-            }
-            TeleportResult::NotTeleporting => {
-                self.try_kick(&TextComponent::text(
-                    "Send Teleport confirm, but we did not teleport",
-                ));
+            TeleportResult::WrongId | TeleportResult::NotTeleporting => {
+                debug!(
+                    "Ignoring teleport confirmation {:?} from {}",
+                    confirm_teleport.teleport_id,
+                    player.gameprofile.name
+                );
             }
         }
     }
