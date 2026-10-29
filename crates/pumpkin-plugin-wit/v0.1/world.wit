@@ -853,6 +853,10 @@ interface %world {
         /// Sets the current time of day in ticks.
         set-time-of-day: func(time: u64);
 
+        /// Turns saving this world's chunks on or off (like `/save-off` for one world). While off,
+        /// chunks that unload or autosave are dropped, not written: for throwaway worlds.
+        set-save-enabled: func(enabled: bool);
+
         /// Returns the total age of the world in ticks.
         get-world-age: func() -> u64;
 

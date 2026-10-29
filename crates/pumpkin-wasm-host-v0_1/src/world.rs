@@ -681,6 +681,14 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         Ok(())
     }
 
+    fn set_save_enabled(&mut self, world: Resource<World>, enabled: bool) -> wasmtime::Result<()> {
+        self.get(&world)?
+            .level
+            .save_enabled
+            .store(enabled, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    }
+
     fn get_world_age(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
         Ok(self.get(&world)?.get_world_age() as u64)
     }
