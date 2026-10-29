@@ -201,6 +201,13 @@ pub async fn io_write_work(
         };
         // debug!("io write thread receive chunks size {}", data.len());
         let positions = data.iter().map(|(pos, _)| *pos).collect::<Vec<_>>();
+        // A world with saving off (`/save-off`, or a plugin's throwaway world) drops its chunks
+        // instead of upgrading, compressing and writing them.
+        if !level.save_enabled.load(std::sync::atomic::Ordering::Relaxed) {
+            drop(data);
+            release_io(&lock, &positions);
+            continue;
+        }
         let level_for_upgrade = level.clone();
         let upgrade_result = run_blocking(move || {
             let mut vec = Vec::with_capacity(data.len());
@@ -235,37 +242,42 @@ pub async fn io_write_work(
             Err(_) => true,
         };
 
-        {
-            let mut data = lock
-                .0
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            for i in positions {
-                match data.entry(i) {
-                    Entry::Occupied(mut entry) => {
-                        let rc = entry.get_mut();
-                        if *rc <= 1 {
-                            entry.remove();
-                        } else {
-                            *rc -= 1;
-                        }
-                    }
-                    Entry::Vacant(_) => {
-                        warn!(
-                            "io_write: attempted to release missing lock entry for {:?}",
-                            i
-                        );
-                    }
-                }
-            }
-        }
-        lock.1.notify_waiters();
+        release_io(&lock, &positions);
 
         if upgrade_failed {
             error!("Failed to upgrade chunks for saving");
             break;
         }
     }
+}
+
+/// Releases the io lock entries for chunks the writer has finished with.
+fn release_io(lock: &IOLock, positions: &[ChunkPos]) {
+    {
+        let mut data = lock
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for i in positions.iter().copied() {
+            match data.entry(i) {
+                Entry::Occupied(mut entry) => {
+                    let rc = entry.get_mut();
+                    if *rc <= 1 {
+                        entry.remove();
+                    } else {
+                        *rc -= 1;
+                    }
+                }
+                Entry::Vacant(_) => {
+                    warn!(
+                        "io_write: attempted to release missing lock entry for {:?}",
+                        i
+                    );
+                }
+            }
+        }
+    }
+    lock.1.notify_waiters();
 }
 
 pub fn run_generation(

@@ -526,11 +526,15 @@ impl World {
             self.migrate_pending_block_entities(pos);
         }
 
-        self.spawn_state.store(Arc::new(SpawnState::new(
-            spawnable_chunks,
-            &self.entities,
-            self,
-        )));
+        // Nothing reads the spawn state while mobs can't spawn; rebuilding it every tick (a new
+        // map, swapped in past every reader) cost a world-per-player server ~3% of its CPU.
+        if self.level_info.load().game_rules.spawn_mobs {
+            self.spawn_state.store(Arc::new(SpawnState::new(
+                spawnable_chunks,
+                &self.entities,
+                self,
+            )));
+        }
     }
 
     pub fn get_lighting_config(&self) -> LightingEngineConfig {
