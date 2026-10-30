@@ -1390,13 +1390,13 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         pitch: f32,
     ) -> wasmtime::Result<()> {
         let player = self.get(&player)?;
-        let sound_name = format!("{sound:?}").to_lowercase().replace('_', ".");
-        let sound_data = pumpkin_data::sound::Sound::from_name(&sound_name)
-            .ok_or_else(|| wasmtime::Error::msg(format!("Unknown sound: {sound_name}")))?;
+        // The WIT `sound` enum lists the registry in order (generated from it), so its position is
+        // the sound id. Going through its Debug name (`Sound::EntityGenericExplode`) never matched.
+        let sound_data = sound as u16;
         let internal_category = super::world::from_wit_sound_category(category);
         let pos = player.position();
         player.play_sound(
-            sound_data as u16,
+            sound_data,
             internal_category,
             &pos,
             volume,
@@ -1416,12 +1416,12 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         pitch: f32,
     ) -> wasmtime::Result<()> {
         let player = self.get(&player)?;
-        let sound_name = format!("{sound:?}").to_lowercase().replace('_', ".");
-        let sound_data = pumpkin_data::sound::Sound::from_name(&sound_name)
-            .ok_or_else(|| wasmtime::Error::msg(format!("Unknown sound: {sound_name}")))?;
+        // The WIT `sound` enum lists the registry in order (generated from it), so its position is
+        // the sound id. Going through its Debug name (`Sound::EntityGenericExplode`) never matched.
+        let sound_data = sound as u16;
         let internal_category = super::world::from_wit_sound_category(category);
         player.play_sound(
-            sound_data as u16,
+            sound_data,
             internal_category,
             &pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2),
             volume,
