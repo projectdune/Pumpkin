@@ -2084,6 +2084,34 @@ impl pumpkin::plugin::world::HostChunkBuffer for PluginHostState {
         Ok(())
     }
 
+    fn fill_runs(
+        &mut self,
+        this: Resource<pumpkin::plugin::world::ChunkBuffer>,
+        runs: Vec<pumpkin::plugin::world::ColumnRun>,
+    ) -> wasmtime::Result<()> {
+        let res = self.get(&this)?;
+        let start_x = pumpkin_world::generation::positions::chunk_pos::start_block_x(res.x);
+        let start_z = pumpkin_world::generation::positions::chunk_pos::start_block_z(res.z);
+        let mut proto = res
+            .proto_chunk
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for run in runs {
+            if run.x >= 16 || run.z >= 16 {
+                continue;
+            }
+            let block_state = pumpkin_data::BlockState::from_id(
+                pumpkin_data::BlockStateId::new(run.state_id)
+                    .unwrap_or(pumpkin_data::BlockStateId::AIR),
+            );
+            let (x, z) = (start_x + run.x as i32, start_z + run.z as i32);
+            for y in run.min_y..=run.max_y {
+                proto.set_block_state(x, y, z, block_state);
+            }
+        }
+        Ok(())
+    }
+
     fn fill_cuboid(
         &mut self,
         this: Resource<pumpkin::plugin::world::ChunkBuffer>,

@@ -1033,6 +1033,15 @@ interface %world {
         features,
     }
 
+    /// A vertical run of one block state in a chunk column, for `chunk-buffer.fill-runs`.
+    record column-run {
+        x: u8,
+        z: u8,
+        min-y: s32,
+        max-y: s32,
+        state-id: u16,
+    }
+
     /// Mutable chunk buffer representing a 16x16 column during custom world generation.
     resource chunk-buffer {
         /// Returns the chunk X coordinate.
@@ -1053,6 +1062,8 @@ interface %world {
         fill-layer: func(y: s32, state-id: u16);
         /// Fills a vertical column from min-y to max-y at local (x, z) with a block state ID.
         fill-range: func(x: u8, min-y: s32, max-y: s32, z: u8, state-id: u16);
+        /// Fills many column runs in one call (a whole chunk's worth): one host call instead of one per run.
+        fill-runs: func(runs: list<column-run>);
         /// Fills a 3D cuboid with a block state ID.
         fill-cuboid: func(min-x: u8, min-y: s32, min-z: u8, max-x: u8, max-y: s32, max-z: u8, state-id: u16);
 

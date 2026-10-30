@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 pub use crate::wit::pumpkin::plugin::biomes::Biome as PluginBiome;
-pub use crate::wit::pumpkin::plugin::world::GenerationPhase;
+pub use crate::wit::pumpkin::plugin::world::{ColumnRun, GenerationPhase};
 
 /// Wrapper around the WIT `chunk-buffer` resource representing a 16x16 chunk column
 /// being generated.
@@ -62,6 +62,11 @@ impl ChunkBuffer {
     /// Fills a vertical column from `min_y` to `max_y` at local `(x, z)` with a block state ID.
     pub fn fill_range(&mut self, x: u8, min_y: i32, max_y: i32, z: u8, state_id: u16) {
         self.inner.fill_range(x, min_y, max_y, z, state_id);
+    }
+
+    /// Fills many column runs in one host call (`x`, `z` local, `min_y..=max_y`).
+    pub fn fill_runs(&mut self, runs: &[ColumnRun]) {
+        self.inner.fill_runs(runs);
     }
 
     /// Fills a 3D cuboid with a block state ID.
