@@ -1203,7 +1203,13 @@ impl PluginManager {
         server: &Arc<Server>,
         event: &mut E,
     ) {
-        self.fire_dyn(server, E::get_name_static(), event).await;
+        if crate::server::tick_profile::enabled() {
+            let start = std::time::Instant::now();
+            self.fire_dyn(server, E::get_name_static(), event).await;
+            crate::server::tick_profile::event(E::get_name_static(), start.elapsed());
+        } else {
+            self.fire_dyn(server, E::get_name_static(), event).await;
+        }
     }
 
     async fn fire_dyn(
@@ -1251,7 +1257,13 @@ impl PluginManager {
         server: &Arc<Server>,
         event: &mut E,
     ) {
-        self.fire_blocking_dyn(server, E::get_name_static(), event);
+        if crate::server::tick_profile::enabled() {
+            let start = std::time::Instant::now();
+            self.fire_blocking_dyn(server, E::get_name_static(), event);
+            crate::server::tick_profile::event(E::get_name_static(), start.elapsed());
+        } else {
+            self.fire_blocking_dyn(server, E::get_name_static(), event);
+        }
     }
 
     fn fire_blocking_dyn(

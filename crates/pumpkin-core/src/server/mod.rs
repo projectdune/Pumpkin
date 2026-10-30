@@ -62,6 +62,7 @@ pub mod recipe;
 pub mod scheduler;
 pub mod seasonal_events;
 pub mod server_test_manager;
+pub mod tick_profile;
 pub mod tick_rate_manager;
 pub mod ticker;
 
@@ -1249,7 +1250,9 @@ impl Server {
                 self.sync_game_time();
                 self.tick_players_and_network();
             }
-            self.flush_pending_block_updates();
+            tick_profile::time(tick_profile::Phase::FlushBlockUpdates, || {
+                self.flush_pending_block_updates();
+            });
             Self::resume_player_flushes(&suspended);
         });
     }
@@ -1281,25 +1284,35 @@ impl Server {
         let source = crate::command::CommandSender::Console
             .into_source(self)
             .with_silent();
-        let _ = self
-            .datapack_manager
-            .execute_function(self, &source, "#minecraft:tick");
+        tick_profile::time(tick_profile::Phase::Datapack, || {
+            let _ = self
+                .datapack_manager
+                .execute_function(self, &source, "#minecraft:tick");
+        });
 
-        self.plugin_manager.tick_loaders(self);
-        self.scheduled_functions.tick(
-            self,
-            self.tick_count.load(std::sync::atomic::Ordering::Relaxed) as u64,
-        );
+        tick_profile::time(tick_profile::Phase::PluginLoaders, || {
+            self.plugin_manager.tick_loaders(self);
+        });
+        tick_profile::time(tick_profile::Phase::Scheduled, || {
+            self.scheduled_functions.tick(
+                self,
+                self.tick_count.load(std::sync::atomic::Ordering::Relaxed) as u64,
+            );
+        });
 
         self.sync_game_time();
 
         let worlds = self.worlds.load();
-        worlds.par_iter().for_each(|world| {
-            world.tick(self);
+        tick_profile::time(tick_profile::Phase::Worlds, || {
+            worlds.par_iter().for_each(|world| {
+                world.tick(self);
+            });
         });
 
         // Global tasks
-        self.player_data_storage.tick(self);
+        tick_profile::time(tick_profile::Phase::PlayerData, || {
+            self.player_data_storage.tick(self);
+        });
     }
 
     /// Vanilla `tickChildren` "timeSync": every 20 ticks, also while frozen.

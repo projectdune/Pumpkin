@@ -2842,7 +2842,9 @@ impl Player {
 
     #[expect(clippy::too_many_lines)]
     pub fn tick<'a>(&'a self, server: &'a Server) {
-        self.process_inbound_packets();
+        crate::server::tick_profile::time(crate::server::tick_profile::Phase::PlayerPackets, || {
+            self.process_inbound_packets();
+        });
 
         if self.is_spectator() {
             self.living_entity
@@ -2922,6 +2924,7 @@ impl Player {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .tick();
+        let t_chunks = std::time::Instant::now();
         if let Ok(listener) = self.chunk_listener.try_lock()
             && let Ok(mut sender) = self.chunk_sender.try_lock()
         {
@@ -3004,6 +3007,9 @@ impl Player {
                 }
             },
         );
+        if crate::server::tick_profile::enabled() {
+            crate::server::tick_profile::add(crate::server::tick_profile::Phase::PlayerChunks, t_chunks.elapsed());
+        }
 
         if let ClientPlatform::Bedrock(bedrock_client) = self.client.as_ref()
             && !self.bedrock_spawned.load(Ordering::Relaxed)

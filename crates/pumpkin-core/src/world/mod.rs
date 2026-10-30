@@ -1534,6 +1534,8 @@ impl World {
 
         self.flush_block_updates();
         self.flush_synced_block_events();
+        let t_env = std::time::Instant::now();
+        let flush_elapsed = t_env - start;
         self.update_active_chunks();
         self.tick_environment();
         let mut raids = {
@@ -1557,6 +1559,7 @@ impl World {
         };
 
         let t_chunks = std::time::Instant::now();
+        let env_elapsed = t_chunks - t_env;
         self.tick_chunks();
         let chunk_elapsed = t_chunks.elapsed();
 
@@ -1762,6 +1765,22 @@ impl World {
         }
 
         let total_elapsed = start.elapsed();
+        if crate::server::tick_profile::enabled() {
+            use crate::server::tick_profile::{Phase, add};
+            add(Phase::WorldFlush, flush_elapsed);
+            add(Phase::WorldEnvironment, env_elapsed);
+            add(Phase::WorldChunks, chunk_elapsed);
+            add(Phase::WorldPlayers, player_elapsed);
+            add(Phase::WorldEntities, entity_elapsed);
+            add(Phase::WorldBlockEntities, block_entity_elapsed);
+            add(
+                Phase::WorldRest,
+                total_elapsed.saturating_sub(
+                    flush_elapsed + env_elapsed + chunk_elapsed + player_elapsed + entity_elapsed + block_entity_elapsed,
+                ),
+            );
+            add(Phase::WorldTotal, total_elapsed);
+        }
         if total_elapsed.as_millis() > 50 {
             debug!(
                 "Slow Tick [{}ms]: Chunks: {:?} | Players({}): {:?} | Entities({}): {:?} | Block Entities({}): {:?}",

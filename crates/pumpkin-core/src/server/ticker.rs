@@ -4,7 +4,7 @@ use crate::{
     plugin::server::{
         server_tick_end::ServerTickEndEvent, server_tick_start::ServerTickStartEvent,
     },
-    server::Server,
+    server::{Server, tick_profile},
 };
 use pumpkin_gametest::GameTestRunner;
 use std::sync::Arc;
@@ -89,9 +89,11 @@ impl Ticker {
 
             let tick_number = server.tick_count.load(Ordering::Relaxed);
             if server.plugin_manager.has_handlers::<ServerTickStartEvent>() {
-                server
-                    .plugin_manager
-                    .fire_blocking(server, &mut ServerTickStartEvent::new(tick_number));
+                tick_profile::time(tick_profile::Phase::TickEvents, || {
+                    server
+                        .plugin_manager
+                        .fire_blocking(server, &mut ServerTickStartEvent::new(tick_number));
+                });
             }
 
             let should_tick_game_tests = (manager.runs_normally() || sprinting)
@@ -105,7 +107,7 @@ impl Ticker {
                     manager.finish_tick_sprint(server);
                 }
             } else {
-                server.tick();
+                tick_profile::time(tick_profile::Phase::Tick, || server.tick());
             }
 
             if should_tick_game_tests {
@@ -119,13 +121,16 @@ impl Ticker {
 
             let tick_number = server.tick_count.load(Ordering::Relaxed);
             if server.plugin_manager.has_handlers::<ServerTickEndEvent>() {
-                server.plugin_manager.fire_blocking(
-                    server,
-                    &mut ServerTickEndEvent::new(tick_number, tick_duration_nanos),
-                );
+                tick_profile::time(tick_profile::Phase::TickEvents, || {
+                    server.plugin_manager.fire_blocking(
+                        server,
+                        &mut ServerTickEndEvent::new(tick_number, tick_duration_nanos),
+                    );
+                });
             }
 
             server.update_tick_times(tick_duration_nanos);
+            tick_profile::end_tick(server.simulation_pool.current_num_threads());
 
             if server.stop_token.is_cancelled() {
                 break 'ticker;
