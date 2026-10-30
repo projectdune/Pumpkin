@@ -4757,6 +4757,15 @@ impl Player {
     }
 
     pub fn set_food_level(&self, food_level: u8) {
+        if self
+            .world()
+            .mine_rules
+            .load()
+            .as_ref()
+            .is_some_and(|rules| rules.invulnerable)
+        {
+            return;
+        }
         let mut food_event =
             crate::plugin::api::events::entity::food_level_change::FoodLevelChangeEvent::new(
                 self.living_entity.entity.entity_id,

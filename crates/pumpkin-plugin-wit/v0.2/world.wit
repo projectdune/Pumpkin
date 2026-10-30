@@ -882,6 +882,8 @@ interface %world {
         /// Turns saving this world's chunks on or off (like `/save-off` for one world). While off,
         /// chunks that unload or autosave are dropped, not written: for throwaway worlds.
         set-save-enabled: func(enabled: bool);
+        /// Sets or clears this world's mine rules (see `mine-rules`).
+        set-mine-rules: func(rules: option<mine-rules>);
 
         /// Returns the total age of the world in ticks.
         get-world-age: func() -> u64;
@@ -1031,6 +1033,20 @@ interface %world {
         noise,
         surface,
         features,
+    }
+
+    /// Rules for a world used as a mine (`world.set-mine-rules`), enforced by the server so the
+    /// plugin isn't called for every dig, swing and hit.
+    record mine-rules {
+        /// Players can break blocks only inside this box (inclusive corners).
+        min: block-pos,
+        max: block-pos,
+        /// Whether blocks broken by players drop anything (items and experience).
+        drops: bool,
+        /// Players in the world take no damage and their food level doesn't change.
+        invulnerable: bool,
+        /// Whether left-clicks (digging, swinging at air) fire the player-interact event.
+        left-click-events: bool,
     }
 
     /// A vertical run of one block state in a chunk column, for `chunk-buffer.fill-runs`.

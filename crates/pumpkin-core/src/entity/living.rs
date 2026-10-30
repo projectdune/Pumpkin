@@ -3221,6 +3221,19 @@ impl LivingEntity {
             return false;
         }
 
+        if self.entity.entity_type == &pumpkin_data::entity::EntityType::PLAYER
+            && self
+                .entity
+                .world
+                .load()
+                .mine_rules
+                .load()
+                .as_ref()
+                .is_some_and(|rules| rules.invulnerable)
+        {
+            return false;
+        }
+
         let mut damage_event =
             crate::plugin::api::events::entity::entity_damage::EntityDamageEvent::new(
                 self.entity.entity_id,

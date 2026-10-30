@@ -715,6 +715,22 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         Ok(())
     }
 
+    fn set_mine_rules(
+        &mut self,
+        world: Resource<World>,
+        rules: Option<pumpkin::plugin::world::MineRules>,
+    ) -> wasmtime::Result<()> {
+        let rules = rules.map(|r| pumpkin_core::world::MineRules {
+            min: BlockPos::new(r.min.x, r.min.y, r.min.z),
+            max: BlockPos::new(r.max.x, r.max.y, r.max.z),
+            drops: r.drops,
+            invulnerable: r.invulnerable,
+            left_click_events: r.left_click_events,
+        });
+        self.get(&world)?.mine_rules.store(rules.map(Arc::new));
+        Ok(())
+    }
+
     fn set_save_enabled(&mut self, world: Resource<World>, enabled: bool) -> wasmtime::Result<()> {
         self.get(&world)?
             .level

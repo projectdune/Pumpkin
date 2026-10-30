@@ -215,6 +215,30 @@ impl PumpkinError for GetBlockError {
 ///
 /// Each dimension (Overworld, Nether, End) typically has its own `World`.
 ///
+/// Rules a plugin puts on a world it uses as a mine (one world per player). The server enforces
+/// them, so the plugin isn't called for every dig, swing and hit while players mine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MineRules {
+    /// Players can break blocks only inside this box (inclusive corners).
+    pub min: BlockPos,
+    pub max: BlockPos,
+    /// Whether blocks broken by players drop anything (items and experience).
+    pub drops: bool,
+    /// Players in this world take no damage and their food level doesn't change.
+    pub invulnerable: bool,
+    /// Whether left-clicks (digging a block, swinging at air) fire `PlayerInteractEvent`.
+    pub left_click_events: bool,
+}
+
+impl MineRules {
+    #[must_use]
+    pub fn contains(&self, pos: &BlockPos) -> bool {
+        (self.min.0.x..=self.max.0.x).contains(&pos.0.x)
+            && (self.min.0.y..=self.max.0.y).contains(&pos.0.y)
+            && (self.min.0.z..=self.max.0.z).contains(&pos.0.z)
+    }
+}
+
 /// **Key Responsibilities:**
 ///
 /// - Manages the `Level` instance for handling chunk-related operations.
@@ -260,6 +284,8 @@ pub struct World {
     pub raids: std::sync::Mutex<raid::Raids>,
     /// End Dragon fight manager (only present in `THE_END` dimension).
     pub dragon_fight: Option<std::sync::Mutex<dragon_fight::DragonFight>>,
+    /// Set by a plugin through `world.set-mine-rules`.
+    pub mine_rules: arc_swap::ArcSwapOption<MineRules>,
     pub spawn_state: ArcSwap<SpawnState>,
     pub active_chunks: RwLock<Arc<FxHashSet<Vector2<i32>>>>,
     pub(crate) navigation_change_sequence: std::sync::atomic::AtomicU64,
@@ -417,6 +443,7 @@ impl World {
             villager_poi: std::sync::Mutex::new(villager_poi::VillagerPoiStorage::default()),
             raids: std::sync::Mutex::new(raid::Raids::default()),
             dragon_fight,
+            mine_rules: arc_swap::ArcSwapOption::empty(),
             spawn_state: ArcSwap::new(Arc::new(SpawnState::empty())),
             active_chunks: RwLock::new(Arc::default()),
             navigation_change_sequence: std::sync::atomic::AtomicU64::new(0),
@@ -5726,6 +5753,16 @@ impl World {
                 .is_some_and(|entity| entity.drops_for_creative_player())
         {
             flags.remove(BlockFlags::SKIP_DROPS);
+        }
+
+        let rules = cause.and(self.mine_rules.load_full());
+        if let Some(rules) = &rules {
+            if !rules.contains(position) {
+                return None;
+            }
+            if !rules.drops {
+                flags.insert(BlockFlags::SKIP_DROPS);
+            }
         }
 
         let mut event = BlockBreakEvent::new(

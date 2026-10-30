@@ -36,7 +36,13 @@ impl JavaClient {
             pumpkin_world::clip::ClipFluid::None,
         ));
 
-        if hit.is_miss {
+        let left_click_events = player
+            .world()
+            .mine_rules
+            .load()
+            .as_ref()
+            .is_none_or(|rules| rules.left_click_events);
+        if hit.is_miss && left_click_events {
             let event =
                 PlayerInteractEvent::new(player, InteractAction::LeftClickAir, &Block::AIR, None);
             send_cancellable_blocking! {{

@@ -36,9 +36,16 @@ impl JavaClient {
                             block,
                             Some(position),
                         );
-                        server_arc
-                            .plugin_manager
-                            .fire_blocking(&server_arc, &mut interact_event);
+                        let left_click_events = world
+                            .mine_rules
+                            .load()
+                            .as_ref()
+                            .is_none_or(|rules| rules.left_click_events);
+                        if left_click_events {
+                            server_arc
+                                .plugin_manager
+                                .fire_blocking(&server_arc, &mut interact_event);
+                        }
                         if interact_event.cancelled {
                             player.try_send_client_packet(&CBlockUpdate::new(
                                 position,

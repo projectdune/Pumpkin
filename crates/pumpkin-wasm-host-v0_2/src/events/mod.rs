@@ -315,13 +315,22 @@ impl WasmPluginEventHandler {
 }
 
 impl<E: Payload + ToFromWasmEvent + Clone + 'static> EventHandler<E> for WasmPluginEventHandler {
+    /// Non-blocking handlers only observe, so the event is handed to the plugin and the caller
+    /// carries on: a player's packet handling no longer waits in the plugin's queue for events the
+    /// plugin can't change (a mines server with 100+ players queued every dig behind every other).
     fn handle<'a>(&'a self, server: &'a Arc<Server>, event: &'a E) -> BoxFuture<'a, ()> {
-        Box::pin(async {
-            let pending = Box::new(NotifiedEvent(event.clone()));
-            if let Err(error) = self.dispatch(server.clone(), pending).await {
-                tracing::error!(handler_id = self.handler_id, %error, "Wasm event handler failed");
+        let handler = Self {
+            handler_id: self.handler_id,
+            plugin: Arc::clone(&self.plugin),
+        };
+        let pending = Box::new(NotifiedEvent(event.clone()));
+        let task_server = Arc::clone(server);
+        server.runtime.spawn(async move {
+            if let Err(error) = handler.dispatch(task_server, pending).await {
+                tracing::error!(handler_id = handler.handler_id, %error, "Wasm event handler failed");
             }
-        })
+        });
+        Box::pin(async {})
     }
 
     fn handle_blocking<'a>(
